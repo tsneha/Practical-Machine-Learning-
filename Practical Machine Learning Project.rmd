@@ -1,0 +1,98 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Sneha"
+date: "June 19, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+The objective and goal of this project is to predict the manner in which they performed the exercise and machine learning classification of accelerometers data on the belt, forearm, arm, and dumbell of 6 participants.In training data "classe" is the outcome variable in the training set using predictor variables to predict 20 different test cases.The data for this project come from this source is: http://groupware.les.inf.puc-rio.br/har. The "classe" variable classifies the correct and incorrect outcomes of A, B, C, D, and E categories. 
+
+```{r Reading data}
+setwd("C:/Users/sneha/Desktop/Coursera Practical ML")
+# downloading data
+trainUrl_raw <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl_raw <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url = trainUrl_raw, destfile = "project_training.csv")
+download.file(url = testUrl_raw, destfile = "project_testing.csv")
+
+# Importing data
+training <- read.csv("project_training.csv", na.strings = c("NA","#DIV/0!",""), header = TRUE)
+testing <- read.csv("project_testing.csv", na.strings = c("NA","#DIV/0!",""), header = TRUE)
+
+```
+
+## Data Splitting
+
+
+```{r Data Splitting}
+library(caret)
+
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+myTraining <- training[inTrain, ]
+myTesting <- training[-inTrain, ]
+dim(myTraining)
+dim(myTesting)
+
+```
+
+##Cleaning Data
+```{r cleaning}
+## removing variables with near zero varaince
+
+nzv <- nearZeroVar(myTraining)
+myTraining <- myTraining[, -nzv]
+myTesting <- myTesting[, -nzv]
+
+## removing variables that are mostly NA
+mostlyNA <- sapply(myTraining, function(x) mean(is.na(x))) > 0.95
+myTraining <- myTraining[, mostlyNA==F]
+myTesting <- myTesting[, mostlyNA == F]
+
+##removing variables that don't seem relevant for prediction (X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp), which are only for identification.
+myTesting <- myTesting[, -(1:5)]
+myTraining <- myTraining[, -(1:5)]
+
+
+```
+
+##Model Building and Prediction
+
+###Decision Tree
+```{r Decision Tree}
+set.seed(333)
+library(rpart)
+modFitTree <- rpart(classe~.,data = myTraining, method = "class")
+modFitTree$finalModel
+library(rpart.plot)
+library(rattle)
+library(RColorBrewer)
+fancyRpartPlot(modFitTree)
+predictionTree <- predict(modFitTree, myTesting, type="class")
+confMatrixTree <- confusionMatrix(predictionTree, myTesting$classe)
+confMatrixTree
+```
+
+### Random Forest
+```{r Random Forest}
+set.seed(333)
+fitControl <- trainControl(## 3-fold CV
+  method = "cv",
+  number = 3)
+modFitRF <- train(classe ~.,myTraining, method = "rf", trControl = fitControl)
+modFitRF$finalmodel
+
+# prediction on test set
+predictionRF <- predict(modFitRF, newdata=myTesting)
+confMatrixRF <- confusionMatrix(predictionRF, myTesting$classe)
+confMatrixRF
+
+```
+
+##Conclusion
+Random Forest provided a better accuracy of 99.8%. So, I chose to use it for making final predictions
